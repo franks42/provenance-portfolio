@@ -158,12 +158,38 @@
 
 ;; ============================================================ one account
 
+(defn variant-label
+  "How one form of an asset differs from others with the same symbol."
+  [infos d]
+  (let [i (get infos d)]
+    (cond (:ibc? i) (str "via IBC" (when-let [f (:ibc-from i)] (str " from " f))
+                         (when (> (or (:ibc-hops i) 0) 1) " (multi-hop)"))
+          (str/ends-with? d ".figure.se") "Figure entitlement (SE)"
+          (str/ends-with? d ".trading") "Figure Markets cash"
+          :else (str (or (:symbol i) d) " (" d ")"))))
+
+(defn- merge-same-symbol
+  "Nodes for the same symbol in different forms (e.g. USDC via IBC and as a
+   Figure entitlement) go under one parent row with the combined value."
+  [{:keys [infos classes]} id pairs]
+  (vec (for [[sym ps] (group-by (fn [[d n]] (get (:group-as classes) (:label n) (:label n))) pairs)]
+         (if (= 1 (count ps))
+           (second (first ps))
+           (let [kids (sort-nodes (for [[d n] ps] (assoc n :label (variant-label infos d))))
+                 ;; amounts only add up when every form has the same symbol and decimals
+                 exps (set (map (fn [[d _]] [(:symbol (get infos d)) (:exponent (get infos d))]) ps))
+                 tot  (reduce + c/ZERO (map (fn [[_ n]] (second (:amount n))) ps))]
+             (cond-> {:id (str id "/sym/" sym) :label sym :children kids :usd (sum-usd kids)
+                      :note (str (count ps) " forms")}
+               (and (= 1 (count exps)) (second (first exps)))
+               (assoc :amount-text (:amount (c/fmt-amount infos (ffirst ps) tot 2)) :amount-sym sym)))))))
+
 (defn- category-nodes
   "Asset-class groups, given [denom node] pairs."
   [cx id pairs]
   (let [by (group-by (fn [[d _]] (classify cx d)) pairs)]
     (vec (for [[k lbl] class-order
-               :let [ns (map second (get by k))]
+               :let [ns (merge-same-symbol cx (str id "/" (name k)) (get by k))]
                :when (seq ns)]
            {:id (str id "/" (name k)) :label lbl
             :children (sort-nodes ns) :usd (sum-usd ns)

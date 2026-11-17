@@ -33,7 +33,9 @@
  ;; figureomni (cfigureomni): Figure's tokenized USD deposit at an omnibus bank,
  ;; in cents (Provenance docs: asset-lifecycle markers / capital-raise example).
  :asset-classes {:stocks #{"FGRS"}
-                 :stable #{"USD" "YLDS" "USDC" "USDT" "figureomni"}}
+                 :stable #{"USD" "YLDS" "USDC" "USDT" "figureomni"}
+                 ;; show a symbol as another form of an asset (grouped under one row)
+                 :group-as {"figureomni" "USD"}}
 
  :prices {:url "https://www.figuremarkets.com/service-hft-exchange/api/v1/markets"
           :field :lastTradedPrice

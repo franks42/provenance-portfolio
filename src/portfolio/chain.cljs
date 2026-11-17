@@ -177,8 +177,17 @@
                  (p/resolved (fallback-denoms denom))
 
                  (str/starts-with? denom "ibc/")
-                 (p/let [r (get-json ctx (str "/ibc/apps/transfer/v1/denoms/" (subs denom 4)) {:allow-404 true})]
-                   (when-let [d (:denom r)]
+                 (p/let [r (get-json ctx (str "/ibc/apps/transfer/v1/denoms/" (subs denom 4)) {:allow-404 true})
+                         d (:denom r)
+                         ;; Chain at the other end of the channel this voucher arrived on.
+                         hop (first (:trace d))
+                         from (when hop
+                                (p/catch
+                                 (p/let [c (get-json ctx (str "/ibc/core/channel/v1/channels/" (:channel_id hop)
+                                                              "/ports/" (:port_id hop) "/client_state"))]
+                                   (get-in c [:identified_client_state :client_state :chain_id]))
+                                 (fn [_] nil)))]
+                   (when d
                      ;; No on-chain decimals for IBC vouchers; use the Cosmos base-denom
                      ;; prefix convention (u = 10^-6, n = 10^-9, a = 10^-18).
                      (let [base (str (:base d))
@@ -186,8 +195,10 @@
                                        [({"u" 6 "n" 9 "a" 18} pfx) (str/upper-case s)]
                                        [nil base])]
                        {:symbol sym :exponent exp :ibc? true
+                        :ibc-from from :ibc-hops (count (:trace d))
                         :name (str base " via IBC "
-                                   (str/join " <- " (map #(str (:port_id %) "/" (:channel_id %)) (:trace d))))})))
+                                   (str/join " <- " (map #(str (:port_id %) "/" (:channel_id %)) (:trace d)))
+                                   (when from (str " from " from)))})))
 
                  (str/includes? denom "/") (p/resolved nil)
 

@@ -471,7 +471,8 @@
        [:span.caret (cond (not can?) "" open? "▾" :else "▸")]
        [tree-label pools node]
        (when (:note node) [:span.tnote (:note node)])]
-      [:span.tamt (when d [amt infos d v 2])]
+      [:span.tamt (cond d [amt infos d v 2]
+                        (:amount-text node) [:span.amt (:amount-text node) " " [:span.sym (:amount-sym node)]])]
       [:span.tusd (when (and d (get-in @app [:prices :prices (:symbol (get infos d)) :estimated?]))
                     [:span.badge {:title (get-in @app [:prices :prices (:symbol (get infos d)) :source])} "est."])
                   (cond (:usd node) (usd-str (:usd node))
