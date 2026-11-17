@@ -5,7 +5,8 @@
             [promesa.core :as p]
             [reagent.core :as r]
             [reagent.dom :as rdom]
-            [portfolio.chain :as c]))
+            [portfolio.chain :as c]
+            [portfolio.tree :as t]))
 
 ;; ============================================================ state
 
@@ -21,11 +22,14 @@
            :prices nil           ; {:prices {sym {:usd :source :assumed?}} :fetched-at} or {:error}
            :error nil
            :show-settings? false
+           :view :tree           ; :tree | :table
+           :open #{"pf"}         ; ids of expanded tree rows
            :form {:address "" :label ""}}))
 
 (def address-re #"^(pb|tp)1[02-9ac-hj-np-z]{38,58}$")
 (def ls-endpoints "pp.endpoints")
 (def ls-accounts "pp.accounts")
+(def ls-open "pp.open")
 
 ;; ============================================================ localStorage (wrapped: it can throw)
 
@@ -58,15 +62,23 @@
 (defn persist-accounts! []
   (let [{:keys [storage accounts include-groups?] :as st} @app]
     (case storage
-      :browser (do (ls-set! ls-accounts {:accounts accounts :include-groups? include-groups?}) (set-hash! ""))
-      :link    (do (ls-del! ls-accounts) (set-hash! (hash-string st)))
-      :session (do (ls-del! ls-accounts) (set-hash! "")))))
+      :browser (do (ls-set! ls-accounts {:accounts accounts :include-groups? include-groups?})
+                   (ls-set! ls-open (:open st)) (set-hash! ""))
+      :link    (do (ls-del! ls-accounts) (ls-del! ls-open) (set-hash! (hash-string st)))
+      :session (do (ls-del! ls-accounts) (ls-del! ls-open) (set-hash! "")))))
+
+(defn toggle-open!
+  "Expand/collapse a tree row. Remembered across visits only in browser storage mode,
+   because row ids contain addresses."
+  [id]
+  (swap! app update :open #(if (contains? % id) (disj % id) (conj % id)))
+  (when (= :browser (:storage @app)) (ls-set! ls-open (:open @app))))
 
 (defn persist-endpoints! [] (ls-set! ls-endpoints (:endpoints @app)))
 
 (defn forget-everything! []
-  (ls-del! ls-accounts) (ls-del! ls-endpoints) (set-hash! "")
-  (swap! app assoc :accounts [] :storage :session :result nil
+  (ls-del! ls-accounts) (ls-del! ls-endpoints) (ls-del! ls-open) (set-hash! "")
+  (swap! app assoc :accounts [] :storage :session :result nil :open #{"pf"}
          :endpoints (:endpoints (:config @app)) :ep-tests {}))
 
 ;; ============================================================ helpers
@@ -395,6 +407,70 @@
        [:div.bad "Some sections failed and are excluded from totals: "
         (str/join "; " (map (fn [[k e]] (str (name k) ": " e)) errors))])]))
 
+(defn price-notes [pr unpriced]
+  [:div
+   (for [{:keys [symbol market fixed deviation alarm?]} (:pegs pr) :when alarm?]
+     ^{:key symbol}
+     [:p.bad "⚠ " symbol " trades at $" market " on Figure Markets, " (.toFixed (* 100 deviation) 2)
+      "% away from its $" fixed " value. Something may be wrong; values here still use $" fixed "."])
+   (cond
+     (:error pr) [:p.warn "Prices unavailable: " (:error pr)]
+     (:prices pr) [:p.note "Prices: Figure Markets last trades, " (subs (:fetched-at pr) 0 16) " UTC. "
+                   (when (seq unpriced) (str "No market (not included in USD): " (str/join ", " (sort unpriced)) ". "))
+                   "SE tokens are valued only if Figure still trades them."])
+   [:p.note "Not visible on chain: claims kept in Figure's own books (e.g. auction-rate/margin pool shares), "
+    "and the backing of SE tokens."]])
+
+;; ============================================================ tree view
+
+(defn tree-cx [res]
+  {:infos (:denoms res)
+   :prices (get-in @app [:prices :prices])
+   :classes (get-in @app [:config :asset-classes])
+   :name-fn account-name})
+
+(defn tree-label [pools node]
+  [:span
+   (:label node)
+   (when (= :group-policy (:kind node)) [:span.badge "group"])
+   (when (#{:vesting-continuous :vesting-delayed :vesting-periodic} (:kind node)) [:span.badge "vesting"])
+   (when-let [m (:controlled-by node)] [:span.badge {:title "Found because this account is a member of its group"} "via " (last4 m)])
+   (when (seq (:errors node))
+     [:span.badge.bad {:title (str/join "; " (map (fn [[k e]] (str (name k) ": " e)) (:errors node)))}
+      "partial data"])])
+
+(defn tree-node [infos pools rep-by-addr node depth]
+  (let [open?  (contains? (:open @app) (:id node))
+        kids   (:children node)
+        can?   (or (seq kids) (:content node))
+        [d v]  (:amount node)]
+    [:<>
+     [:div.trow {:class [(when (:overlay? node) "overlay") (when (zero? depth) "root") (when (:warn? node) "warn") (when can? "can")]
+                 :style {:padding-left (str (+ 0.4 (* 1.3 depth)) "em")}
+                 :on-click (when can? #(toggle-open! (:id node)))}
+      [:span.tlabel
+       [:span.caret (cond (not can?) "" open? "▾" :else "▸")]
+       [tree-label pools node]
+       (when (:note node) [:span.tnote (:note node)])]
+      [:span.tamt (when d [amt infos d v 2])]
+      [:span.tusd (cond (:usd node) (usd-str (:usd node))
+                        (and d (not (:overlay? node))) [:span.muted "no market"]
+                        :else "")]]
+     (when open?
+       (for [ch kids] ^{:key (:id ch)} [tree-node infos pools rep-by-addr ch (inc depth)]))
+     (when (and open? (= :access (:content node)))
+       [:div.tcontent {:style {:margin-left (str (+ 1.7 (* 1.3 depth)) "em")}}
+        [control-box (get rep-by-addr (:address node)) pools]])]))
+
+(defn tree-card [res]
+  (let [tree  (t/portfolio-tree (tree-cx res) res)
+        infos (:denoms res)
+        reps  (into {} (map (juxt :address identity) (:reports res)))
+        {unpriced :unpriced} (usd-sum infos (get-in res [:totals :holdings]))]
+    [:section.card.tree
+     [tree-node infos (:pools res) reps tree 0]
+     [price-notes (:prices @app) unpriced]]))
+
 (defn totals-card [res]
   (let [infos (:denoms res)
         {:keys [holdings prime]} (:totals res)
@@ -419,17 +495,7 @@
        (for [[d x] prime]
          ^{:key (str "prime-" d)}
          [:tr [:td "Lent in Prime"] [:td [amt infos d x 2]] [:td ""] [:td (or (some->> (usd-of infos d x) usd-str) "—")]])]]
-     (for [{:keys [symbol market fixed deviation alarm?]} (:pegs pr) :when alarm?]
-       ^{:key symbol}
-       [:p.bad "⚠ " symbol " trades at $" market " on Figure Markets, " (.toFixed (* 100 deviation) 2)
-        "% away from its $" fixed " value. Something may be wrong; values here still use $" fixed "."])
-     (cond
-       (:error pr) [:p.warn "Prices unavailable: " (:error pr)]
-       (:prices pr) [:p.note "Prices: Figure Markets last trades, " (subs (:fetched-at pr) 0 16) " UTC. "
-                     (when (seq unpriced) (str "No market (not included in USD): " (str/join ", " (sort unpriced)) ". "))
-                     "SE tokens are valued only if Figure still trades them."])
-     [:p.note "Not visible on chain: claims kept in Figure's own books (e.g. auction-rate/margin pool shares), "
-      "and the backing of SE tokens."]]))
+     [price-notes pr unpriced]]))
 
 (defn portfolio-view []
   (let [{:keys [result error loading?]} @app]
@@ -442,8 +508,14 @@
           [:p.muted "Block " (get-in result [:head :height]) " · " (some-> (get-in result [:head :time]) (subs 0 19) (str/replace "T" " ")) " UTC · "
            (get-in result [:head :chain-id]) " · data unverified (REST, from " (str/join ", " (map :label (:endpoints (ctx)))) ")"
            (when (pos? (:hidden-empty result)) (str " · " (:hidden-empty result) " empty group account(s) hidden"))]
-          [totals-card result]
-          (for [rep (:reports result)] ^{:key (:address rep)} [account-card infos pools rep])]))
+          [:div.row
+           [:button.small {:class (when (= :tree (:view @app)) "on") :on-click #(swap! app assoc :view :tree)} "Tree view"]
+           [:button.small {:class (when (= :table (:view @app)) "on") :on-click #(swap! app assoc :view :table)} "Table view"]]
+          (if (= :table (:view @app))
+            [:div
+             [totals-card result]
+             (for [rep (:reports result)] ^{:key (:address rep)} [account-card infos pools rep])]
+            [tree-card result])]))
      (when loading? [:p.muted "Loading…"])]))
 
 (defn root []
@@ -472,7 +544,8 @@
                          :endpoints (vec (or saved-eps (:endpoints cfg)))}
                         (cond
                           from-hash {:accounts (:accounts from-hash) :include-groups? (:include-groups? from-hash) :storage :link}
-                          from-ls   {:accounts (vec (:accounts from-ls)) :include-groups? (:include-groups? from-ls true) :storage :browser}
+                          from-ls   {:accounts (vec (:accounts from-ls)) :include-groups? (:include-groups? from-ls true) :storage :browser
+                                     :open (set (or (ls-get ls-open) #{"pf"}))}
                           :else     {}))
                  (when (seq (:accounts @app)) (load-portfolio!)))))
       (.catch (fn [e] (swap! app assoc :error (str "Could not load endpoints.edn: " e) :config {:endpoints []})))))

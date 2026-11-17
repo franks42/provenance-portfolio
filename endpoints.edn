@@ -21,6 +21,11 @@
  ;; :peg-check   compare the market price of these fixed symbols to the fixed
  ;;              value and warn when it deviates by more than :peg-tolerance.
  ;; :assume-usd  valued at $1 only when there is no market (marked "assumed").
+ ;; Asset classes for the tree view, by symbol. Anything else is "tradable crypto"
+ ;; when Figure Markets has a price for it, otherwise "untradable crypto".
+ :asset-classes {:stocks #{"FGRS"}
+                 :stable #{"USD" "YLDS" "USDC" "USDT"}}
+
  :prices {:url "https://www.figuremarkets.com/service-hft-exchange/api/v1/markets"
           :field :lastTradedPrice
           :fixed-usd {"USD" "1" "YLDS" "1"}

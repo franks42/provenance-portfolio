@@ -44,6 +44,24 @@
     .nowrap { white-space: nowrap; }
     table.eps td { font-size: 13px; }
     .big { font-size: 20px; margin: 4px 0 10px; }
+    button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .tree { padding: 6px 0 10px; }
+    .tree .note { padding: 0 16px; }
+    .trow { display:grid; grid-template-columns: minmax(0,1fr) 13em 9em; gap: 8px; align-items: baseline;
+            padding-top:4px; padding-bottom:4px; padding-right:16px; border-bottom:1px solid var(--line);
+            font-variant-numeric: tabular-nums; }
+    .trow.can { cursor: pointer; }
+    .trow:hover { background: var(--bg); }
+    .trow.root { font-size: 18px; font-weight: 600; }
+    .trow.overlay .tlabel { font-style: italic; }
+    .trow.warn .tlabel { color: var(--warn); }
+    .tlabel { overflow-wrap: anywhere; }
+    .caret { display:inline-block; width: 1.1em; color: var(--muted); cursor: pointer; }
+    .tnote { margin-left: 8px; font-size: 12px; color: var(--muted); }
+    .tamt, .tusd { text-align: right; white-space: nowrap; }
+    .tusd { font-weight: 600; }
+    .tcontent { padding: 4px 16px 8px; }
+    @media (max-width: 640px) { .trow { grid-template-columns: minmax(0,1fr) 8em; } .tamt { display:none; } }
   </style>
 
   <!-- Pinned versions with Subresource Integrity: a modified CDN file will not run. -->
@@ -61,7 +79,8 @@
 <body>
   <div id="app"></div>
   <noscript>This page needs JavaScript.</noscript>
-  <script type="application/x-scittle" src="src/portfolio/chain.cljs?v=0.2.3"></script>
-  <script type="application/x-scittle" src="src/portfolio/ui.cljs?v=0.2.3"></script>
+  <script type="application/x-scittle" src="src/portfolio/chain.cljs?v=0.3.2"></script>
+  <script type="application/x-scittle" src="src/portfolio/tree.cljs?v=0.3.2"></script>
+  <script type="application/x-scittle" src="src/portfolio/ui.cljs?v=0.3.2"></script>
 </body>
 </html>
