@@ -30,15 +30,17 @@
 
  ;; Asset classes for the tree view, by symbol. Anything else is "tradable crypto"
  ;; when Figure Markets has a price for it, otherwise "untradable crypto".
+ ;; figureomni (cfigureomni): Figure's tokenized USD deposit at an omnibus bank,
+ ;; in cents (Provenance docs: asset-lifecycle markers / capital-raise example).
  :asset-classes {:stocks #{"FGRS"}
-                 :stable #{"USD" "YLDS" "USDC" "USDT"}}
+                 :stable #{"USD" "YLDS" "USDC" "USDT" "figureomni"}}
 
  :prices {:url "https://www.figuremarkets.com/service-hft-exchange/api/v1/markets"
           :field :lastTradedPrice
           :fixed-usd {"USD" "1" "YLDS" "1"}
           :peg-check #{"YLDS"}
           :peg-tolerance 0.005
-          :assume-usd #{"USDC" "USDT"}}
+          :assume-usd #{"USDC" "USDT" "figureomni"}}
 
  ;; A pool used by the endpoint self-test to check height pinning.
  :probe-pool "pb1lgdznp6dyljdq40xvcknkzcgelh2es0udwnx9rzn7c5q55435l3sx6v5a6"
