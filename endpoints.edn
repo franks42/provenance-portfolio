@@ -1,0 +1,67 @@
+;; Default endpoint configuration for the Provenance portfolio viewer.
+;;
+;; Users can reorder, disable, test and add endpoints in the page; their choice
+;; is kept in this browser's localStorage and overrides this file. Endpoints
+;; must allow browser (CORS) access to be usable from the page.
+;;
+;; All endpoints run the same Provenance software, so the API is identical;
+;; what differs is operational (history retention, CORS, height pinning,
+;; rate limits). Tested 2026-11-17; re-test with the page's "Test" button.
+;; Note: browsers cannot send the x-cosmos-block-height header to any of these
+;; (CORS preflight refused), so the page always shows latest state.
+{:chain-id "pio-mainnet-1"
+
+ ;; CosmWasm code ids whose contracts are Democratized Prime lending pools.
+ ;; New pools of these codes are discovered automatically.
+ :prime-code-ids [62]
+
+ ;; Market prices for USD valuation (Figure Markets public API; CORS open).
+ ;; X-USD markets price directly; "X-YLDS" markets are converted via the YLDS price.
+ ;; :fixed-usd   exact prices that override the market (YLDS is a $1 instrument).
+ ;; :peg-check   compare the market price of these fixed symbols to the fixed
+ ;;              value and warn when it deviates by more than :peg-tolerance.
+ ;; :assume-usd  valued at $1 only when there is no market (marked "assumed").
+ :prices {:url "https://www.figuremarkets.com/service-hft-exchange/api/v1/markets"
+          :field :lastTradedPrice
+          :fixed-usd {"USD" "1" "YLDS" "1"}
+          :peg-check #{"YLDS"}
+          :peg-tolerance 0.005
+          :assume-usd #{"USDC" "USDT"}}
+
+ ;; A pool used by the endpoint self-test to check height pinning.
+ :probe-pool "pb1lgdznp6dyljdq40xvcknkzcgelh2es0udwnx9rzn7c5q55435l3sx6v5a6"
+
+ :endpoints
+ [{:id :polkachu
+   :label "Polkachu"
+   :rest "https://provenance-api.polkachu.com"
+   :rpc  "https://provenance-rpc.polkachu.com"
+   :enabled? true
+   :notes "CORS * for plain GETs. State history ~4 weeks (server-side; browsers cannot pin heights)."}
+
+  {:id :stavr
+   :label "STAVR"
+   :rest "https://provenance.api.m.stavr.tech"
+   :enabled? true
+   :notes "CORS * for plain GETs. State history ~12 weeks (server-side; browsers cannot pin heights)."}
+
+  {:id :pocket
+   :label "Pocket Network (relay)"
+   :rest "https://provenance.api.pocket.network"
+   :rpc  "https://provenance.api.pocket.network"
+   :enabled? false
+   :notes "CORS reflects origin. Latest state only: silently ignores height pinning. Relay network; requests visible to relaying nodes."}
+
+  {:id :ibs
+   :label "Inter Blockchain Services"
+   :rest "https://provenance.ibs.team:443/api"
+   :rpc  "https://provenance.ibs.team:443/rpc"
+   :enabled? false
+   :notes "CORS * for plain GET only (no preflight). State history ~hours."}
+
+  {:id :foundation
+   :label "Provenance Blockchain Foundation"
+   :rest "https://api.provenance.io"
+   :rpc  "https://rpc.provenance.io"
+   :enabled? false
+   :notes "Archive node, but CORS allowlist only (blocked from this page) and 60 req/min. Listed for reference."}]}

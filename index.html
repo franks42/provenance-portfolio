@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="data:,">
+  <title>Provenance portfolio (read-only)</title>
+  <style>
+    :root { --fg:#1d232b; --muted:#6b7480; --line:#e3e6ea; --bg:#f6f7f9; --card:#fff; --ok:#1a7f37; --warn:#9a6700; --bad:#b42318; --accent:#2457d6; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg:#e6e8eb; --muted:#9aa3ad; --line:#2c333b; --bg:#14181d; --card:#1b2027; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --accent:#6d9bff; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--fg); background:var(--bg); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    header h1 { margin: 8px 0 0; font-size: 22px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:14px 0; }
+    .card h3 { margin:0 0 10px; font-size:17px; }
+    .sub { border-top:1px solid var(--line); margin-top:12px; padding-top:10px; }
+    .sub h4 { margin:0 0 6px; font-size:14px; }
+    table { border-collapse: collapse; width:100%; }
+    th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align: top; }
+    th { font-size:12px; color:var(--muted); font-weight:600; }
+    table.coins td { font-variant-numeric: tabular-nums; }
+    .kv td:first-child { color:var(--muted); width: 40%; }
+    .muted { color:var(--muted); } .small { font-size:13px; } .note { font-size:12px; color:var(--muted); }
+    .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+    .sym { color:var(--muted); }
+    .badge { display:inline-block; font-size:11px; padding:1px 6px; margin-left:4px; border-radius:9px; border:1px solid var(--line); color:var(--muted); vertical-align: middle; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    input { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); }
+    input.wide { flex: 1 1 360px; font-family: ui-monospace, monospace; }
+    button { padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+    button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    button.small { padding:2px 8px; font-size:12px; }
+    button.link { border:none; background:none; color:var(--accent); }
+    button:disabled { opacity:.5; cursor:default; }
+    fieldset { border:1px solid var(--line); border-radius:8px; margin:10px 0; }
+    fieldset label { display:block; margin:4px 0; }
+    ul.accounts { margin:0; padding-left:18px; }
+    code { font-family: ui-monospace, monospace; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:6px 16px; }
+    .nowrap { white-space: nowrap; }
+    table.eps td { font-size: 13px; }
+    .big { font-size: 20px; margin: 4px 0 10px; }
+  </style>
+
+  <!-- Pinned versions with Subresource Integrity: a modified CDN file will not run. -->
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"
+          integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"
+          integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/scittle@0.8.33/dist/scittle.js"
+          integrity="sha384-kytuseyo4jKo4Y7OmrbKV5/Cg+KeBJmeYWle+isCUJcjlGOT66FAtqz4k6igqExa"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/scittle@0.8.33/dist/scittle.reagent.js"
+          integrity="sha384-++S8+b3sxDcti9qggw9GfLkp+xV+gNlIcv7JwPTJBvMtws6H3JbS4lXrd70/ZKJs"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/scittle@0.8.33/dist/scittle.promesa.js"
+          integrity="sha384-YRjSRfVtLv1wYNgUCaDHZoqaIhYokPGVc7QowcrGLYYc0Ey+VghryG2Ucz8ntB0e"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>This page needs JavaScript.</noscript>
+  <script type="application/x-scittle" src="src/portfolio/chain.cljs?v=0.2.1"></script>
+  <script type="application/x-scittle" src="src/portfolio/ui.cljs?v=0.2.1"></script>
+</body>
+</html>
