@@ -29,8 +29,16 @@ Democratized Prime lending positions. No server, no keys, no signing.
 - `src/portfolio/chain.cljs`: data layer. Runs unchanged in Scittle **and nbb** (uses only
   `js/fetch` + promesa). Endpoint fallback, 429 backoff, concurrency limiter, denom metadata,
   bank/hold/commitments/staking/rewards/vesting/authz/groups, Prime pool discovery + valuation.
+- `src/portfolio/tree.cljs`: pure data. Turns reports into the tree (accounts, asset classes,
+  wallet/delegation breakdown, vesting overlay, free to move, forms of one asset, Prime notes).
+  Runs in Scittle and nbb. Domain knowledge belongs here or in chain.cljs, not in ui.cljs,
+  so the CLI gets it too.
 - `src/portfolio/ui.cljs`: Reagent UI, storage-mode handling, endpoint settings and self-test.
-- `endpoints.edn`: default endpoints, Prime code ids, probe pool for the self-test.
+- `bin/portfolio.cljs`: nbb CLI for agents/scripts (`--format tree|json|edn`), same chain+tree code.
+- `skills/provenance-portfolio/SKILL.md`: how an agent runs the CLI and reads its output.
+  Update it when the meaning of a tree row changes.
+- `endpoints.edn`: endpoints, Prime code ids, prices (fixed/assumed/estimated), asset classes
+  (`:group-as`), probe pool for the self-test.
 
 ## Data sources
 Public Provenance REST (LCD) endpoints that allow browser CORS access. The API is the same

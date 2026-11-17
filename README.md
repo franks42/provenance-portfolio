@@ -42,10 +42,16 @@ Plain files, no build step. See `CLAUDE.md` for rules (cache busters, SRI, BigIn
 ```sh
 python3 -m http.server 8000   # then open http://127.0.0.1:8000/
 ```
-The data layer (`src/portfolio/chain.cljs`) also runs under nbb for testing:
+The data layer (`src/portfolio/chain.cljs`, `tree.cljs`) also runs under nbb.
+
+## Command line / AI agents
+The same view without a browser (Node 18+):
 ```sh
-npx nbb -cp src -e "(require '[portfolio.chain :as c]) ..."
+npx nbb -cp src bin/portfolio.cljs pb1…your-address~label            # indented text
+npx nbb -cp src bin/portfolio.cljs --format json pb1…a pb1…b          # data (or edn)
 ```
+[`skills/provenance-portfolio/SKILL.md`](skills/provenance-portfolio/SKILL.md) tells an
+agent how to run it and what each row means. Read-only: no keys, no signing.
 
 Data shown is unverified REST output from third-party nodes; check important figures
 against Figure Markets or an explorer.
