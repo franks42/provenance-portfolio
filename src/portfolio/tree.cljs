@@ -64,7 +64,7 @@
   (let [sym (or (:symbol (get infos d)) d)]
     (cond (contains? (set (:stocks classes)) sym) :stocks
           (contains? (set (:stable classes)) sym) :stable
-          (get prices sym) :crypto
+          (let [px (get prices sym)] (and px (not (:estimated? px)))) :crypto
           :else :untradable)))
 
 ;; ============================================================ one asset in one account
@@ -167,7 +167,10 @@
                :when (seq ns)]
            {:id (str id "/" (name k)) :label lbl
             :children (sort-nodes ns) :usd (sum-usd ns)
-            :note (when (= k :untradable) "no market on Figure; not in totals")}))))
+            :note (when (= k :untradable)
+                    (if (some :usd ns)
+                      "no market on Figure; valued at an external spot price (estimate)"
+                      "no market on Figure; not in totals"))}))))
 
 (defn- prime-node [cx id positions]
   (group id "Prime lending"

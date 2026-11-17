@@ -21,6 +21,13 @@
  ;; :peg-check   compare the market price of these fixed symbols to the fixed
  ;;              value and warn when it deviates by more than :peg-tolerance.
  ;; :assume-usd  valued at $1 only when there is no market (marked "assumed").
+ ;; Estimated USD prices for assets Figure Markets doesn't trade (e.g. the ETH/SOL/XRP/UNI
+ ;; security entitlements). Shown and totalled as estimates. {SYM} is the asset symbol.
+ ;; Alternative: CoinGecko (one call for all, but symbols must be mapped to coin ids).
+ :estimate-prices {:url "https://api.coinbase.com/v2/prices/{SYM}-USD/spot"
+                   :path [:data :amount]
+                   :source "Coinbase spot"}
+
  ;; Asset classes for the tree view, by symbol. Anything else is "tradable crypto"
  ;; when Figure Markets has a price for it, otherwise "untradable crypto".
  :asset-classes {:stocks #{"FGRS"}

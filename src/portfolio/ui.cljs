@@ -147,16 +147,31 @@
 
 ;; ============================================================ actions
 
+(defn estimate-missing!
+  "Once both the portfolio and Figure prices are in: fetch external estimates for
+   held symbols Figure Markets doesn't price, and merge them in marked :estimated?."
+  []
+  (let [{:keys [result prices config]} @app
+        ec (:estimate-prices config)]
+    (when (and ec result (:prices prices) (not (:estimated-at prices)))
+      (let [syms (:unpriced (usd-sum (:denoms result) (get-in result [:totals :holdings])))]
+        (swap! app assoc-in [:prices :estimated-at] :pending)
+        (-> (c/fetch-estimates ec syms)
+            (p/then (fn [est] (swap! app update :prices
+                                     #(-> % (update :prices merge est)
+                                          (assoc :estimated-at (.toISOString (js/Date.)))))))
+            (p/catch (fn [_] nil)))))))
+
 (defn load-portfolio! []
   (let [{:keys [accounts include-groups?]} @app]
     (when (seq accounts)
       (swap! app assoc :loading? true :error nil)
       (when-let [pc (get-in @app [:config :prices])]
         (-> (c/fetch-prices pc)
-            (p/then #(swap! app assoc :prices %))
+            (p/then #(do (swap! app assoc :prices %) (estimate-missing!)))
             (p/catch #(swap! app assoc :prices {:error (ex-message %)}))))
       (-> (c/portfolio (ctx) (mapv :address accounts) {:include-groups? include-groups?})
-          (p/then (fn [res] (swap! app assoc :result res :loading? false)))
+          (p/then (fn [res] (swap! app assoc :result res :loading? false) (estimate-missing!)))
           (p/catch (fn [e] (swap! app assoc :error (ex-message e) :loading? false)))))))
 
 (defn refresh! [] (c/reset-caches!) (load-portfolio!))
@@ -416,7 +431,11 @@
    (cond
      (:error pr) [:p.warn "Prices unavailable: " (:error pr)]
      (:prices pr) [:p.note "Prices: Figure Markets last trades, " (subs (:fetched-at pr) 0 16) " UTC. "
-                   (when (seq unpriced) (str "No market (not included in USD): " (str/join ", " (sort unpriced)) ". "))
+                   (when (seq unpriced) (str "No price (not included in USD): " (str/join ", " (sort unpriced)) ". "))
+                   (let [est (sort (keep (fn [[s v]] (when (:estimated? v) (str s " $" (:usd v)))) (:prices pr)))]
+                     (when (seq est)
+                       (str "Estimated from " (get-in @app [:config :estimate-prices :source]) " (no Figure market): "
+                            (str/join ", " est) ". ")))
                    "SE tokens are valued only if Figure still trades them."])
    [:p.note "Not visible on chain: claims kept in Figure's own books (e.g. auction-rate/margin pool shares), "
     "and the backing of SE tokens."]])
@@ -453,7 +472,9 @@
        [tree-label pools node]
        (when (:note node) [:span.tnote (:note node)])]
       [:span.tamt (when d [amt infos d v 2])]
-      [:span.tusd (cond (:usd node) (usd-str (:usd node))
+      [:span.tusd (when (and d (get-in @app [:prices :prices (:symbol (get infos d)) :estimated?]))
+                    [:span.badge {:title (get-in @app [:prices :prices (:symbol (get infos d)) :source])} "est."])
+                  (cond (:usd node) (usd-str (:usd node))
                         (and d (not (:overlay? node))) [:span.muted "no market"]
                         :else "")]]
      (when open?
@@ -490,7 +511,7 @@
                         px (get-in pr [:prices sym]) x (usd-of infos d v)]]
          ^{:key d}
          [:tr [:td sym] [:td [amt infos d v 2]]
-          [:td (if px [:span {:title (:source px)} (price-str (:usd px)) (when (:assumed? px) [:span.badge "assumed"])] [:span.muted "no market"])]
+          [:td (if px [:span {:title (:source px)} (price-str (:usd px)) (when (:assumed? px) [:span.badge "assumed"]) (when (:estimated? px) [:span.badge "est."])] [:span.muted "no market"])]
           [:td (if x (usd-str x) [:span.muted "—"])]])
        (for [[d x] prime]
          ^{:key (str "prime-" d)}

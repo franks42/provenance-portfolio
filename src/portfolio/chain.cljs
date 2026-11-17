@@ -520,6 +520,21 @@
     (when (and p exponent)
       (/ (* amt (dec->big p 18)) (pow10 exponent)))))
 
+(defn fetch-estimates
+  "USD estimates from an external spot-price API, for symbols Figure Markets
+   doesn't price. :url contains {SYM}; :path is where the price sits in the JSON.
+   -> {sym {:usd :source :estimated? true}}; symbols that fail are left out."
+  [{:keys [url path source]} syms]
+  (p/let [rs (p/all
+              (for [s syms]
+                (-> (js/fetch (str/replace url "{SYM}" (js/encodeURIComponent s)))
+                    (.then (fn [r] (when (= 200 (.-status r)) (.json r))))
+                    (.then (fn [j]
+                             (when-let [a (some-> j (js->clj :keywordize-keys true) (get-in path))]
+                               [s {:usd (str a) :source (str source ", " s "-USD") :estimated? true}])))
+                    (.catch (fn [_] nil)))))]
+    (into {} (remove nil? rs))))
+
 ;; ============================================================ endpoint self-test
 
 (defn test-endpoint
