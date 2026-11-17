@@ -93,7 +93,8 @@
 (defn amt
   ([infos denom v] (amt infos denom v 6))
   ([infos denom v dp]
-   (let [f   (c/fmt-amount infos denom v dp)
+   (let [ibc? (:ibc? (get infos denom))
+         f   (c/fmt-amount infos denom v dp)
          ;; a non-zero amount that rounds to 0 is shown with full precision
          f   (if (and (= "0" (:amount f)) (c/big-pos? v)) (c/fmt-amount infos denom v) f)
          {:keys [amount symbol base raw?]} f
@@ -101,6 +102,7 @@
      [:span.amt {:title base}
       amount " " [:span.sym symbol]
       (when se? [:span.badge {:title "Security entitlement: a claim held at Figure, not the native coin"} "SE"])
+      (when ibc? [:span.badge {:title (str (:name (get infos denom)) ". Decimals inferred from the denom prefix.")} "IBC"])
       (when raw? [:span.badge {:title "No on-chain metadata: shown in raw base units"} "raw"])])))
 
 (defn denom-order [infos ds]
@@ -109,8 +111,10 @@
 ;; ============================================================ USD valuation
 
 (defn usd-str [v18]
-  (let [s (c/big->dec v18 18 2)]
-    (if (and (= "0" s) (c/big-pos? v18)) "<$0.01" (str "$" (c/group3 s)))))
+  (let [s (c/big->dec v18 18 2)
+        [i f] (str/split s #"\." 2)
+        s2 (str i "." (subs (str f "00") 0 2))]
+    (if (and (= "0" s) (c/big-pos? v18)) "<$0.01" (str "$" (c/group3 s2)))))
 
 (defn price-str [p] (str "$" (c/group3 (c/big->dec (c/dec->big p 18) 18 6))))
 

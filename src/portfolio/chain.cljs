@@ -179,9 +179,15 @@
                  (str/starts-with? denom "ibc/")
                  (p/let [r (get-json ctx (str "/ibc/apps/transfer/v1/denoms/" (subs denom 4)) {:allow-404 true})]
                    (when-let [d (:denom r)]
-                     {:symbol (:base d) :exponent nil
-                      :name (str (:base d) " via IBC "
-                                 (str/join " <- " (map #(str (:port_id %) "/" (:channel_id %)) (:trace d))))}))
+                     ;; No on-chain decimals for IBC vouchers; use the Cosmos base-denom
+                     ;; prefix convention (u = 10^-6, n = 10^-9, a = 10^-18).
+                     (let [base (str (:base d))
+                           [exp sym] (if-let [[_ pfx s] (re-matches #"^([una])([a-z][a-z0-9]*)$" base)]
+                                       [({"u" 6 "n" 9 "a" 18} pfx) (str/upper-case s)]
+                                       [nil base])]
+                       {:symbol sym :exponent exp :ibc? true
+                        :name (str base " via IBC "
+                                   (str/join " <- " (map #(str (:port_id %) "/" (:channel_id %)) (:trace d))))})))
 
                  (str/includes? denom "/") (p/resolved nil)
 
