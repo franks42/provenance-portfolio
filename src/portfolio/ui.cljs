@@ -6,6 +6,7 @@
             [reagent.core :as r]
             [reagent.dom :as rdom]
             [portfolio.chain :as c]
+            [portfolio.activity :as act]
             [portfolio.tree :as t]))
 
 ;; ============================================================ state
@@ -24,6 +25,7 @@
            :show-settings? false
            :view :tree           ; :tree | :table
            :open #{"pf"}         ; ids of expanded tree rows
+           :activity {}          ; addr -> {:status :loading|:ok|:error :events :since}
            :form {:address "" :label ""}}))
 
 (def address-re #"^(pb|tp)1[02-9ac-hj-np-z]{38,58}$")
@@ -162,6 +164,32 @@
                                           (assoc :estimated-at (.toISOString (js/Date.)))))))
             (p/catch (fn [_] nil)))))))
 
+(defn activity-ctx
+  "Endpoints for tx history: the configured ids, in the user's endpoint list;
+   falls back to the enabled endpoints."
+  []
+  (let [ids (get-in @app [:config :activity :endpoints])
+        eps (:endpoints @app)
+        sel (keep (fn [i] (some #(when (= i (:id %)) %) eps)) ids)]
+    {:endpoints (vec (if (seq sel) sel (filter :enabled? eps)))}))
+
+(defn load-activity!
+  "Recent transactions of every account in res, in the background."
+  [res]
+  (let [actx  (activity-ctx)
+        limit (or (get-in @app [:config :activity :limit]) 20)
+        since (act/history-start actx)]
+    (doseq [{:keys [address]} (:reports res)]
+      (swap! app assoc-in [:activity address] {:status :loading})
+      (-> (p/let [r  (act/account-activity actx address (:pools res) {:limit limit})
+                  ;; names/decimals for denoms not in the holdings
+                  missing (remove #(contains? (get-in @app [:result :denoms]) %) (:denoms r))
+                  ds (when (seq missing) (c/resolve-denoms (ctx) (zipmap missing (repeat 1))))
+                  s  since]
+            (when (seq ds) (swap! app update-in [:result :denoms] merge ds))
+            (swap! app assoc-in [:activity address] (assoc r :status :ok :since s)))
+          (p/catch (fn [e] (swap! app assoc-in [:activity address] {:status :error :error (ex-message e)})))))))
+
 (defn load-portfolio! []
   (let [{:keys [accounts include-groups?]} @app]
     (when (seq accounts)
@@ -171,7 +199,8 @@
             (p/then #(do (swap! app assoc :prices %) (estimate-missing!)))
             (p/catch #(swap! app assoc :prices {:error (ex-message %)}))))
       (-> (c/portfolio (ctx) (mapv :address accounts) {:include-groups? include-groups?})
-          (p/then (fn [res] (swap! app assoc :result res :loading? false) (estimate-missing!)))
+          (p/then (fn [res] (swap! app assoc :result res :loading? false :activity {})
+                    (estimate-missing!) (load-activity! res)))
           (p/catch (fn [e] (swap! app assoc :error (ex-message e) :loading? false)))))))
 
 (defn refresh! [] (c/reset-caches!) (load-portfolio!))
@@ -446,6 +475,8 @@
   {:infos (:denoms res)
    :prices (get-in @app [:prices :prices])
    :classes (get-in @app [:config :asset-classes])
+   :pools (:pools res)
+   :activity (:activity @app)
    :name-fn account-name})
 
 (defn tree-label [pools node]

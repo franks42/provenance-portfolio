@@ -13,7 +13,8 @@
      :children  vector of nodes (optional)
      :content   keyword for a special panel the UI renders when open (optional)"
   (:require [clojure.string :as str]
-            [portfolio.chain :as c]))
+            [portfolio.chain :as c]
+            [portfolio.activity :as act]))
 
 (def class-order
   [[:stocks     "Stocks"]
@@ -138,7 +139,7 @@
           (group (str id "/free") "free to move"
                  [(line cx (str id "/free/now") "available now" d sp)
                   (line cx (str id "/free/comm") "+ committed" d comm
-                        {:note "release from Figure Markets first; cancels open orders on these funds"})
+                        {:note "release from Figure Markets first; cancels open orders on these funds (orders are kept off-chain by Figure)"})
                   (line cx (str id "/free/rew") "+ rewards" d rew {:note "claim first"})
                   (line cx (str id "/free/sum") "= free after these steps" d free-sum)]
                  {:overlay? true :amount [d free-sum] :usd (usd cx d free-sum)}))
@@ -220,6 +221,28 @@
                   {:note (prime-note x)
                    :warn? (:above-kink? x)})))))
 
+(defn- activity-node
+  "Recent transactions of an account, from cx :activity {addr {:status ...}}."
+  [cx id addr]
+  (when-let [{:keys [status events since error failed]} (get (:activity cx) addr)]
+    (let [pools   (into {} (map (juxt :pool :label)) (:pools cx))
+          name-fn (fn [a] (if-let [l (pools a)] (str l " " (last4 a)) ((:name-fn cx) a)))
+          since-s (when-let [t (:time since)] (str "node history since " (subs t 0 10)))
+          base    {:id id :label "activity" :overlay? true}]
+      (case status
+        :loading (assoc base :note "loading…")
+        :error   (assoc base :note (str "unavailable: " error) :warn? true)
+        (if (empty? events)
+          (assoc base :note (str/join " · " (remove nil? ["no transactions found" since-s])))
+          (assoc base
+                 :note (str/join " · " (remove nil? [(str (count events) " most recent transactions") since-s
+                                                     (when (pos? (or failed 0)) (str failed " searches failed"))]))
+                 :children (vec (map-indexed
+                                 (fn [i e]
+                                   {:id (str id "/" i) :overlay? true :event e
+                                    :label (str (subs (str (:time e)) 0 10) " · " (act/describe (:infos cx) name-fn e))})
+                                 events))))))))
+
 (defn account-node [cx rep]
   (let [a     (:address rep)
         id    (str "acct/" a)
@@ -229,7 +252,8 @@
         kids  (sort-nodes (remove nil? (conj cats prime)))
         access (when (or (seq (:grants rep)) (:group rep))
                  {:id (str id "/access") :label "access & permissions" :overlay? true
-                  :content :access :address a})]
+                  :content :access :address a})
+        actv   (activity-node cx (str id "/activity") a)]
     {:id id
      :label ((:name-fn cx) a)
      :address a
@@ -237,7 +261,7 @@
      :controlled-by (some-> rep :discovered-via :member)
      :errors (:errors rep)
      :usd (sum-usd kids)
-     :children (cond-> kids access (conj access))}))
+     :children (cond-> kids access (conj access) actv (conj actv))}))
 
 ;; ============================================================ all accounts
 

@@ -29,6 +29,9 @@ Democratized Prime lending positions. No server, no keys, no signing.
 - `src/portfolio/chain.cljs`: data layer. Runs unchanged in Scittle **and nbb** (uses only
   `js/fetch` + promesa). Endpoint fallback, 429 backoff, concurrency limiter, denom metadata,
   bank/hold/commitments/staking/rewards/vesting/authz/groups, Prime pool discovery + valuation.
+- `src/portfolio/activity.cljs`: recent transactions per account via tx search (needs a node
+  that indexes tx history: `:activity :endpoints` in endpoints.edn), interpreted relative to
+  the account (trade, lend, commit, transfer, staking, group proposal) and described in text.
 - `src/portfolio/tree.cljs`: pure data. Turns reports into the tree (accounts, asset classes,
   wallet/delegation breakdown, vesting overlay, free to move, forms of one asset, Prime notes).
   Runs in Scittle and nbb. Domain knowledge belongs here or in chain.cljs, not in ui.cljs,
@@ -50,6 +53,12 @@ everywhere (same chain software); operators differ in history retention, CORS, l
 - USD prices: Figure Markets public markets API (`:prices` in `endpoints.edn`, CORS reflects any
   origin). `X-USD` markets price directly; `X-YLDS` via YLDS-USD. ETH/SOL/XRP/UNI entitlements have
   no market since Figure ended trading in them, so they're listed as unpriced.
+- Figure Markets (market 1) takes no on-chain orders (`accepting_orders false`): matching is
+  off-chain; the chain sees commitments (x/exchange) and settlements
+  (`MsgMarketCommitmentSettleRequest`). Typed exchange event values are JSON-quoted, so tx
+  search needs `...EventFundsCommitted.account='"pb1…"'`.
+- Tx history: STAVR indexes txs back to its lowest block (ask for block 1: "lowest height is N");
+  Polkachu keeps blocks longer but indexes far fewer txs.
 - Prime pools: CosmWasm code id(s) in `:prime-code-ids`; receipt-token address is
   `get_state → contract.atca`; value = CW20 shares × `get_reserve → reserve.liquidity_index`.
 

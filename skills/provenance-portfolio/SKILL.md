@@ -18,7 +18,7 @@ signing. It cannot move funds, and you should not try to make it.
 Needs Node 18+ (nbb is fetched by `npx`). From the repo root:
 
 ```
-npx nbb -cp src bin/portfolio.cljs [--format tree|json|edn] [--no-groups] [--no-prices] ADDRESS[~label] ...
+npx nbb -cp src bin/portfolio.cljs [--format tree|json|edn] [--no-groups] [--no-prices] [--activity] ADDRESS[~label] ...
 ```
 
 - `tree` (default): indented text for people.
@@ -27,6 +27,7 @@ npx nbb -cp src bin/portfolio.cljs [--format tree|json|edn] [--no-groups] [--no-
   policy accounts) are found automatically; `--no-groups` turns that off.
 - Endpoints, prices and asset classes come from `endpoints.edn`
   (`--config PATH` to use another file).
+- `--activity` adds each account's recent transactions (see below).
 - A run makes roughly 50–150 HTTP requests and takes 10–30 s.
 
 ## Privacy
@@ -73,6 +74,31 @@ Prime lending rows show the value of the receipt shares (shares × liquidity
 index), the lender rate and utilization. A row flagged `!` (JSON
 `"warning": true`) is above its rate-model kink: high rate, but little
 unborrowed cash, so withdrawals may have to wait.
+
+## Activity (`--activity`)
+
+An "activity" row per account lists its most recent transactions (default 20)
+in plain terms, newest first. JSON/EDN carry each one as `event` with `kind`,
+`time`, `height`, `hash`, amounts and counterparties. Kinds:
+
+- `trade`: a Figure Markets fill settled on chain ("traded 100 USD → 100 YLDS").
+  The implied price is out ÷ in.
+- `lend` / `prime-withdraw`: YLDS moved to or from a Prime pool.
+- `receive` / `send`: transfers (a receive may be committed to Figure Markets
+  right away, e.g. recurring YLDS payouts).
+- `commit` / `release`: funds set aside for, or released from, Figure Markets.
+- `stake`, `unstake`, `redelegate`, `claim`: staking.
+- `group-proposal`: this account proposed an action for a group account it
+  controls (e.g. authorizing Figure's operator for a Prime deposit).
+- `other`: listed by message type.
+
+Limits:
+- Only transactions the node still indexes. The note says since when
+  ("node history since …"); older activity is not shown, so "no
+  transactions found" means none in that window, not never.
+- Open orders are not on chain at all. Figure matches orders on its own
+  servers; the chain only sees commitments and settled fills. No limit or stop
+  prices, and nothing about unfilled orders.
 
 ## How far to trust the values
 

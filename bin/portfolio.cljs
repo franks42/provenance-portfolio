@@ -7,6 +7,7 @@
 ;;   --format tree|json|edn   output (default tree: indented text)
 ;;   --no-groups              don't look for group accounts the addresses control
 ;;   --no-prices              skip USD valuation
+;;   --activity               add recent transactions per account (slower)
 ;;   --config PATH            endpoints file (default: endpoints.edn next to src/)
 ;;   --help
 ;;
@@ -18,12 +19,13 @@
             [clojure.string :as str]
             [promesa.core :as p]
             [portfolio.chain :as c]
+            [portfolio.activity :as act]
             [portfolio.tree :as t]))
 
 (def config (atom nil))
 
 (def usage
-  (str "Usage: npx nbb -cp src bin/portfolio.cljs [--format tree|json|edn] [--no-groups] [--no-prices]\n"
+  (str "Usage: npx nbb -cp src bin/portfolio.cljs [--format tree|json|edn] [--no-groups] [--no-prices] [--activity]\n"
        "                                          [--config endpoints.edn] ADDRESS[~label] ...\n"))
 
 ;; ============================================================ args & config
@@ -40,6 +42,7 @@
       (= a "--config") (recur (rest more) (assoc o :config (first more)))
       (= a "--no-groups") (recur more (assoc o :groups? false))
       (= a "--no-prices") (recur more (assoc o :prices? false))
+      (= a "--activity") (recur more (assoc o :activity? true))
       (str/starts-with? a "--") (assoc o :error (str "Unknown option " a))
       :else (let [[addr lbl] (str/split a #"~" 2)]
               (if (re-matches address-re addr)
@@ -74,7 +77,25 @@
 
 ;; ============================================================ load
 
-(defn load-all [cfg {:keys [accounts groups? prices?]}]
+(defn activity-ctx [cfg]
+  (let [eps (:endpoints cfg)
+        sel (keep (fn [i] (some #(when (= i (:id %)) %) eps)) (get-in cfg [:activity :endpoints]))]
+    {:endpoints (vec (if (seq sel) sel (filter :enabled? eps)))}))
+
+(defn load-activity [cfg ctx res]
+  (let [actx (activity-ctx cfg)]
+    (p/let [since (act/history-start actx)
+            rs    (p/all (for [{:keys [address]} (:reports res)]
+                           (p/catch (p/let [r (act/account-activity actx address (:pools res)
+                                                                    {:limit (or (get-in cfg [:activity :limit]) 20)})]
+                                      [address (assoc r :status :ok :since since)])
+                                    (fn [e] [address {:status :error :error (ex-message e)}]))))
+            acts  (into {} rs)
+            miss  (remove #(contains? (:denoms res) %) (mapcat :denoms (vals acts)))
+            ds    (when (seq miss) (c/resolve-denoms ctx (zipmap miss (repeat 1))))]
+      {:activity acts :denoms ds})))
+
+(defn load-all [cfg {:keys [accounts groups? prices? activity?]}]
   (let [ctx {:endpoints (filterv :enabled? (:endpoints cfg))
              :prime-code-ids (:prime-code-ids cfg)}]
     (p/let [res    (c/portfolio ctx (mapv :address accounts) {:include-groups? groups?})
@@ -84,8 +105,11 @@
                      (unpriced-symbols (:denoms res) (:prices pr) (get-in res [:totals :holdings])))
             est    (if (and (seq miss) (:estimate-prices cfg))
                      (p/catch (c/fetch-estimates (:estimate-prices cfg) miss) (fn [_] {}))
-                     {})]
-      {:ctx ctx :result res
+                     {})
+            acts   (when activity? (load-activity cfg ctx res))]
+      {:ctx ctx
+       :result (cond-> res (:denoms acts) (update :denoms merge (:denoms acts)))
+       :activity (:activity acts)
        :prices (cond-> pr (:prices pr) (update :prices merge est))})))
 
 ;; ============================================================ output
@@ -120,6 +144,15 @@
       (assoc :kind (some-> (:kind rep) name)
              :controlled-by (:controlled-by node)
              :errors (not-empty (:errors rep)))
+      (:event node)
+      (assoc :event (let [e (:event node)
+                          am (fn [m] (mapv #(amount-map infos %) m))]
+                      (cond-> (select-keys e [:kind :time :height :hash :pool :pool-address :with :from :to
+                                              :group-account :inner :types])
+                        true (update :kind name)
+                        (:coins e) (assoc :coins (am (:coins e)))
+                        (:in e) (assoc :in (am (:in e)))
+                        (:out e) (assoc :out (am (:out e))))))
       (= :access (:content node))
       (assoc :grants (mapv (fn [g] {:grantee (:grantee g) :type (:type g) :msg (str (:msg g))
                                     :expiration (:expiration g)})
@@ -145,12 +178,14 @@
                   (when (:note node) (str "  — " (:note node))))]
     (cons line (mapcat #(tree-text infos prices % (inc depth)) (:children node)))))
 
-(defn report [{:keys [result prices]} names fmt]
+(defn report [{:keys [result prices activity]} names fmt]
   (let [infos (:denoms result)
         px    (:prices prices)
         name-fn (fn [a] (if-let [l (get names a)] (str l " " (last4 a)) (last4 a)))
         tree  (t/portfolio-tree {:infos infos :prices px
                                  :classes (:asset-classes @config)
+                                 :pools (:pools result)
+                                 :activity activity
                                  :name-fn name-fn}
                                 result)
         reps  (into {} (map (juxt :address identity) (:reports result)))

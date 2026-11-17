@@ -49,6 +49,7 @@ The same view without a browser (Node 18+):
 ```sh
 npx nbb -cp src bin/portfolio.cljs pb1…your-address~label            # indented text
 npx nbb -cp src bin/portfolio.cljs --format json pb1…a pb1…b          # data (or edn)
+npx nbb -cp src bin/portfolio.cljs --activity pb1…a                   # + recent transactions
 ```
 [`skills/provenance-portfolio/SKILL.md`](skills/provenance-portfolio/SKILL.md) tells an
 agent how to run it and what each row means. Read-only: no keys, no signing.

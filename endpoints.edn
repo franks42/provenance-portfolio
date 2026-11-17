@@ -28,6 +28,11 @@
                    :path [:data :amount]
                    :source "Coinbase spot"}
 
+ ;; Account activity (recent transactions) uses the node's tx search, which needs
+ ;; an endpoint that keeps tx history. Endpoint ids from :endpoints, tried in order.
+ :activity {:endpoints [:stavr :polkachu]
+            :limit 20}
+
  ;; Asset classes for the tree view, by symbol. Anything else is "tradable crypto"
  ;; when Figure Markets has a price for it, otherwise "untradable crypto".
  ;; figureomni (cfigureomni): Figure's tokenized USD deposit at an omnibus bank,
