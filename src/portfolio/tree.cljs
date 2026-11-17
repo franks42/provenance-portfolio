@@ -198,22 +198,27 @@
                       "no market on Figure; valued at an external spot price (estimate)"
                       "no market on Figure; not in totals"))}))))
 
-(defn- prime-node [cx id positions]
-  (group id "Prime lending"
-         (sort-nodes
-          (for [x positions]
-            (line cx (str id "/" (:pool x)) (str (:label x) " " (last4 (:pool x)))
-                  (:underlying x) (:value x)
-                  {:note (str "lender rate " (:lender-rate-pct x) " · utilization " (:utilization-pct x))
-                   :warn? (:above-kink? x)})))))
-
 (defn- pct [s] (when s (str (.toFixed (* 100 (js/parseFloat s)) 2) "%")))
+
+(defn- prime-note [x]
+  (str "lender rate " (:lender-rate-pct x) " · utilization " (:utilization-pct x)
+       (when (:above-kink? x)
+         (str " · above " (str/replace (pct (or (:kink x) "1")) #"\.00%" "%") " kink: high rate, limited withdrawal liquidity"))))
 
 (defn- decorate-prime [x]
   (assoc x
          :lender-rate-pct (pct (:lender-rate x))
          :utilization-pct (pct (:utilization x))
          :above-kink? (> (js/parseFloat (:utilization x)) (js/parseFloat (or (:kink x) "1")))))
+
+(defn- prime-node [cx id positions]
+  (group id "Prime lending"
+         (sort-nodes
+          (for [x positions]
+            (line cx (str id "/" (:pool x)) (str (:label x) " " (last4 (:pool x)))
+                  (:underlying x) (:value x)
+                  {:note (prime-note x)
+                   :warn? (:above-kink? x)})))))
 
 (defn account-node [cx rep]
   (let [a     (:address rep)
@@ -259,7 +264,7 @@
                                x   (decorate-prime (first xs))
                                per (sort-nodes (for [y xs] (line cx (str id "/prime/" pool "/" (:holder y)) (name-fn (:holder y)) d (:value y))))]
                            (line cx (str id "/prime/" pool) (str (:label x) " " (last4 pool)) d tot
-                                 {:note (str "lender rate " (:lender-rate-pct x) " · utilization " (:utilization-pct x))
+                                 {:note (prime-note x)
                                   :warn? (:above-kink? x)
                                   :children (when (> (count per) 1) per)})))))
         kids   (sort-nodes (remove nil? (conj cats prime)))]
